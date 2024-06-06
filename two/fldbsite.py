@@ -1,15 +1,17 @@
-from flask import (Flask, render_template, url_for, request, flash, session,
-                   redirect, g)
-import os
 import sqlite3
+import os
+from flask import Flask, render_template, url_for, request, flash, session, redirect, g
+
 from FDataBase import FDataBase
 
-DATABASE = 'flsk.db'
+
+DATABASE = '/tmp/flsk.db'
 DEBUG = True
-SECRET_KEY = "033dc051ec2c8ef6225617118e951c2761c50648"
+SECRET_KEY = "431aad16756852cd4d33370cbe77cb14629c5743"
 
 app = Flask(__name__)
 app.config.from_object(__name__)
+
 app.config.update(dict(DATABASE=os.path.join(app.root_path, 'flsk.db')))
 
 
@@ -37,19 +39,46 @@ def get_db():
 def index():
     db = get_db()
     dbase = FDataBase(db)
-    return render_template('index.html', menu=dbase.get_menu())
+    return render_template('index.html', menu=dbase.get_menu(), posts=dbase.get_posts_annonce())
 
 
-@app.teardown_appcontext
-def close_db(error):
-    if hasattr(g, "link_db"):
-        g.link_db.close()
+@app.route("/add_post", methods=["POST", "GET"])
+def add_post():
+    db = get_db()
+    dbase = FDataBase(db)
+
+    if request.method == "POST":
+        if len(request.form['name']) > 4 and len(request.form['post']) > 10:
+            res = dbase.add_post(request.form['name'], request.form['post'], request.form['url'])
+            if not res:
+                flash("Ошибка добавления статьи", category="error")
+            else:
+                flash("Статья добавлена успешно", category="success")
+        else:
+            flash("Ошибка длины", category="error")
+    return render_template("add_post.html", menu=dbase.get_menu(), title="Добавление статьи")
+
+
+@app.route("/post/<alias>")
+def show_post(alias):
+    db = get_db()
+    dbase = FDataBase(db)
+    title, post = dbase.get_post(alias)
+
+    return render_template('post.html', menu=dbase.get_menu(), title=title, post=post)
 
 
 @app.errorhandler(404)
 def page_not_found(error):
-    # print(error)
-    return render_template("page404.html", title='Станица не найдена', menu=[])
+    db = get_db()
+    dbase = FDataBase(db)
+    return render_template("page404.html", title="Страница не найдена", menu=dbase.get_menu())
+
+
+@app.teardown_appcontext
+def close_db(error):
+    if hasattr(g, 'link_db'):
+        g.link_db.close()
 
 
 if __name__ == '__main__':
